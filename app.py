@@ -12,20 +12,26 @@ def load_css():
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# LOAD DATA & MODEL
+# LOAD DATA & MODEL (UPDATED)
 # --------------------------------------------------------------
 @st.cache_data
 def load_data():
-    return pd.read_csv("Pune_House_Data.csv")  # your dataset
+    return pd.read_csv("Pune_House_Data.csv")  # your dataset name
 
 @st.cache_resource
 def load_model():
-    return pickle.load(open("model.pkl", "rb"))
+    try:
+        with open("model.pkl", "rb") as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        st.error("❌ model.pkl not found. Please upload it to the project root.")
+        st.stop()
 
 df = load_data()
 model = load_model()
 
-load_css()  # apply premium styling
+# Apply CSS
+load_css()
 
 # --------------------------------------------------------------
 # PAGE CONFIG
@@ -61,7 +67,6 @@ with tab1:
 
     col1, col2, col3 = st.columns(3)
 
-    # KPI CARDS (Animated Glass Cards)
     col1.markdown(f"""
         <div class="glass-card kpi-card">
             <h3>🏠 Total Properties</h3>
@@ -85,8 +90,8 @@ with tab1:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Filters
     st.markdown('<div class="section-subtitle">🔍 Filters</div>', unsafe_allow_html=True)
+
     colF1, colF2 = st.columns(2)
 
     bedrooms = colF1.selectbox("Bedrooms", ["All"] + sorted(df["bedrooms"].unique()))
@@ -143,6 +148,8 @@ with tab2:
         ax.set_ylabel("Price")
         st.pyplot(fig)
 
+
+
 # =============================================================
 # 🤖 TAB 3 — PREMIUM PREDICTION
 # =============================================================
@@ -163,9 +170,9 @@ with tab3:
         else:
             ui_col = col1 if i % 2 == 0 else col2
             inputs[col] = ui_col.number_input(
-                col, 
-                float(df[col].min()), 
-                float(df[col].max()), 
+                col,
+                float(df[col].min()),
+                float(df[col].max()),
                 float(df[col].mean())
             )
 
