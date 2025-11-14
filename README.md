@@ -1,13 +1,4 @@
-🏡 House Price Prediction – End-to-End ML Project
 
-This project is a complete Machine Learning pipeline that predicts house prices using various house features (numerical + categorical).
-It includes preprocessing, feature engineering, model training, evaluation, and a Streamlit web application for real-time predictions.
-
-📌 Features of This Project
-
-✔ Automatic data cleaning (remove missing values & duplicates)
-
-✔ Identify numeric + categorical columns automatically
 # 🏡 House Price Prediction – End-to-End ML Project
 
 This project is a complete Machine Learning pipeline that predicts house prices using various house features (numerical + categorical).  
