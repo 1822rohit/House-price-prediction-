@@ -320,4 +320,4 @@ with tab4:
 # FOOTER
 # ---------------------------------------------------------
 st.markdown("---")
-st.caption("Built with ❤️ by Arihant | Premium ML Dashboard v1.0")
+st.caption("Built with ❤️ by Rohit | Premium ML Dashboard v1.0")
