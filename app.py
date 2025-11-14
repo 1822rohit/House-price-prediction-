@@ -29,7 +29,6 @@ def convert_sqft(x):
     try:
         x = str(x).lower().strip()
 
-        # Case 1: Range values "1000 - 1300"
         if "-" in x:
             p1, p2 = x.split("-")
             p1 = p1.strip().replace(",", "")
@@ -37,25 +36,22 @@ def convert_sqft(x):
             if p1.replace(".", "", 1).isdigit() and p2.replace(".", "", 1).isdigit():
                 return (float(p1) + float(p2)) / 2
 
-        # Case 2: Square meter
         if "meter" in x:
             num = float(x.split("sq")[0].strip())
             return num * 10.7639
 
-        # Case 3: Acres
         if "acre" in x:
             num = float(x.split("acre")[0].strip())
             return num * 43560
 
-        # Case 4: Normal numeric
         clean = x.replace(",", "")
         if clean.replace(".", "", 1).isdigit():
             return float(clean)
 
-        return None
-
     except:
         return None
+
+    return None
 
 
 # -----------------------------------------------------------
@@ -85,7 +81,7 @@ def load_data():
 
 
 # -----------------------------------------------------------
-# Streamlit Page Config
+# Streamlit Setup
 # -----------------------------------------------------------
 st.set_page_config(page_title="🏡 Premium House Dashboard", layout="wide")
 load_css()
@@ -125,26 +121,19 @@ training_columns = [
 # -----------------------------------------------------------
 # CLEAN DATA EXACTLY LIKE TRAINING
 # -----------------------------------------------------------
-# Clean square feet
 df["total_sqft"] = df["total_sqft"].apply(convert_sqft)
 df = df.dropna(subset=["total_sqft"])
 
-# Ensure correct types
 categorical_cols = ["area_type", "availability", "size", "society", "site_location"]
 numeric_cols = ["total_sqft", "bath", "balcony"]
 
-# Convert categorical columns → string ONLY
 for col in categorical_cols:
     df[col] = df[col].astype(str).str.strip()
 
-# Convert numeric columns → numeric ONLY
 for col in numeric_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 
-# Remove bad rows
 df_clean = df.dropna(subset=numeric_cols)
-
-# Keep only training columns
 df_clean = df_clean[training_columns + ["price"]]
 
 
@@ -219,7 +208,6 @@ with tab3:
         st.warning("⚠ Not enough data to evaluate model (need ≥ 10 rows).")
         st.info(f"Rows available: {len(df_clean)}")
 
-        # Show prediction preview
         try:
             preds = model.predict(df_clean[training_columns])
             preview = pd.DataFrame({
@@ -241,7 +229,6 @@ with tab3:
             )
 
             preds = model.predict(X_test)
-
             r2 = r2_score(y_test, preds)
             rmse = mean_squared_error(y_test, preds, squared=False)
 
@@ -258,10 +245,10 @@ with tab3:
 
 
 # -----------------------------------------------------------
-# TAB 4 — Prediction
+# TAB 4 — PREDICTION (FINAL SAFE BLOCK)
 # -----------------------------------------------------------
 with tab4:
-    st.subheader("Predict House Price")
+    st.subheader("Predict House Price (Safe Version)")
 
     inputs = {}
     col1, col2 = st.columns(2)
@@ -269,19 +256,44 @@ with tab4:
     for i, col in enumerate(training_columns):
         ui = col1 if i % 2 == 0 else col2
 
-        if df_clean[col].dtype == object:
-            inputs[col] = ui.selectbox(col, sorted(df_clean[col].unique()))
+        if col in categorical_cols:
+            opts = sorted(df_clean[col].dropna().unique())
+            if len(opts) > 0:
+                inputs[col] = ui.selectbox(col, opts)
+            else:
+                inputs[col] = ui.text_input(col)
         else:
             mn, mx, mv = df_clean[col].min(), df_clean[col].max(), df_clean[col].mean()
-            inputs[col] = ui.number_input(col, mn, mx, mv)
+            inputs[col] = ui.number_input(col, value=mv, min_value=mn, max_value=mx)
 
-    if st.button("🔮 Predict Price"):
+    if st.button("🔮 Predict Price (Safe)"):
         try:
             df_in = pd.DataFrame([inputs])
-            pred = model.predict(df_in)[0]
-            st.success(f"🏠 Estimated Price: ₹ {round(pred, 2)}")
+
+            # FORCE TYPES
+            for c in categorical_cols:
+                df_in[c] = df_in[c].astype(str).str.strip()
+
+            for c in numeric_cols:
+                df_in[c] = pd.to_numeric(df_in[c], errors="coerce")
+
+            # CHECK FOR BAD NUMERIC VALUES
+            bad_nums = [c for c in numeric_cols if pd.isna(df_in.at[0, c])]
+            if bad_nums:
+                st.error(f"Please enter valid numeric values for: {bad_nums}")
+            else:
+                # ORDER COLUMNS EXACTLY AS TRAINING
+                df_in = df_in[training_columns]
+
+                # PREDICT
+                pred = model.predict(df_in)[0]
+                st.success(f"🏠 Estimated Price: ₹ {round(pred, 2)}")
+
         except Exception as e:
-            st.error(f"Prediction failed: {e}")
+            st.error("Prediction failed — see debug info below.")
+            st.write(str(e))
+            st.write("Input dtypes:", df_in.dtypes)
+            st.dataframe(df_in)
 
 
 # -----------------------------------------------------------
