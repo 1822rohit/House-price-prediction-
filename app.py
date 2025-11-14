@@ -1,65 +1,69 @@
 # ============================================================
-# PREMIUM HOUSE PRICE DASHBOARD — FINAL STABLE VERSION
+# PREMIUM HOUSE PRICE DASHBOARD — FINAL ERROR-FREE VERSION
 # ============================================================
 
 import streamlit as st
 import numpy as np
 import pandas as pd
 import pickle
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import train_test_split
 
 
-# ---------------------------------------------------------
+# -----------------------------------------------------------
 # Load CSS
-# ---------------------------------------------------------
+# -----------------------------------------------------------
 def load_css(path="style.css"):
     if Path(path).exists():
         with open(path, "r") as css:
             st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------
-# Convert sqft safely
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# Clean sqft data
+# -----------------------------------------------------------
 def convert_sqft(x):
     try:
         x = str(x).lower().strip()
 
+        # Case 1: Range values "1000 - 1300"
         if "-" in x:
-            p = x.split("-")
-            if len(p) == 2:
-                p1, p2 = p[0].strip(), p[1].strip()
-                if p1.replace('.', '', 1).isdigit() and p2.replace('.', '', 1).isdigit():
-                    return (float(p1) + float(p2)) / 2
+            p1, p2 = x.split("-")
+            p1 = p1.strip().replace(",", "")
+            p2 = p2.strip().replace(",", "")
+            if p1.replace(".", "", 1).isdigit() and p2.replace(".", "", 1).isdigit():
+                return (float(p1) + float(p2)) / 2
 
+        # Case 2: Square meter
         if "meter" in x:
             num = float(x.split("sq")[0].strip())
             return num * 10.7639
 
+        # Case 3: Acres
         if "acre" in x:
             num = float(x.split("acre")[0].strip())
             return num * 43560
 
+        # Case 4: Normal numeric
         clean = x.replace(",", "")
         if clean.replace(".", "", 1).isdigit():
             return float(clean)
 
+        return None
+
     except:
         return None
 
-    return None
 
-
-# ---------------------------------------------------------
-# Load model safely
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# Load model
+# -----------------------------------------------------------
 def load_model():
     if not Path("model.pkl").exists():
-        st.error("❌ model.pkl not found in root folder.")
+        st.error("❌ model.pkl missing.")
         st.stop()
 
     try:
@@ -70,9 +74,9 @@ def load_model():
         st.stop()
 
 
-# ---------------------------------------------------------
-# Load dataset safely
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# Load dataset
+# -----------------------------------------------------------
 def load_data():
     if not Path("Pune_House_Data.csv").exists():
         st.error("❌ Pune_House_Data.csv not found.")
@@ -80,32 +84,32 @@ def load_data():
     return pd.read_csv("Pune_House_Data.csv")
 
 
-# ---------------------------------------------------------
-# Streamlit Setup
-# ---------------------------------------------------------
-st.set_page_config(page_title="🏡 Premium Dashboard", layout="wide")
+# -----------------------------------------------------------
+# Streamlit Page Config
+# -----------------------------------------------------------
+st.set_page_config(page_title="🏡 Premium House Dashboard", layout="wide")
 load_css()
 
 st.markdown("""
 <div class="header">
     <h1>🏡 Premium House Price Prediction Dashboard</h1>
-    <p>Advanced, Reliable & Production-Ready</p>
+    <p>Stable, Clean & Production Ready</p>
 </div>
 """, unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------
-# Load Model + Data
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# Load model + data
+# -----------------------------------------------------------
 model = load_model()
 df = load_data()
 
-
-# ---------------------------------------------------------
-# CLEANING EXACTLY LIKE TRAINING
-# ---------------------------------------------------------
 df.columns = [c.strip() for c in df.columns]
 
+
+# -----------------------------------------------------------
+# TRAINING SCHEMA (IMPORTANT)
+# -----------------------------------------------------------
 training_columns = [
     "area_type",
     "availability",
@@ -117,47 +121,49 @@ training_columns = [
     "site_location"
 ]
 
-# Clean sqft
+
+# -----------------------------------------------------------
+# CLEAN DATA EXACTLY LIKE TRAINING
+# -----------------------------------------------------------
+# Clean square feet
 df["total_sqft"] = df["total_sqft"].apply(convert_sqft)
 df = df.dropna(subset=["total_sqft"])
 
-# Enforce correct types
+# Ensure correct types
 categorical_cols = ["area_type", "availability", "size", "society", "site_location"]
 numeric_cols = ["total_sqft", "bath", "balcony"]
 
+# Convert categorical columns → string ONLY
 for col in categorical_cols:
     df[col] = df[col].astype(str).str.strip()
 
+# Convert numeric columns → numeric ONLY
 for col in numeric_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 
-df = df.dropna(subset=numeric_cols)
+# Remove bad rows
+df_clean = df.dropna(subset=numeric_cols)
 
-# Keep only training schema + target
-df_clean = df.copy()
+# Keep only training columns
 df_clean = df_clean[training_columns + ["price"]]
 
 
-# ---------------------------------------------------------
-# KPIs
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# KPI Section
+# -----------------------------------------------------------
 st.markdown("## 📊 Overview")
 
-total_rows = len(df_clean)
-avg_price = df_clean["price"].mean()
-avg_sqft = df_clean["total_sqft"].mean()
-
 k1, k2, k3 = st.columns(3)
-k1.metric("Total Properties", total_rows)
-k2.metric("Avg Price", f"₹ {round(avg_price,2)}")
-k3.metric("Avg Area (sqft)", round(avg_sqft, 2))
+k1.metric("Total Properties", len(df_clean))
+k2.metric("Avg Price", f"₹ {round(df_clean['price'].mean(),2)}")
+k3.metric("Avg Area (sqft)", round(df_clean["total_sqft"].mean(), 2))
 
 st.markdown("---")
 
 
-# ---------------------------------------------------------
+# -----------------------------------------------------------
 # Tabs
-# ---------------------------------------------------------
+# -----------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Dashboard",
     "📈 Analytics",
@@ -166,9 +172,9 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 
-# ---------------------------------------------------------
-# TAB 1 – Dashboard
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# TAB 1 — Dashboard
+# -----------------------------------------------------------
 with tab1:
     st.subheader("Data Preview")
     st.dataframe(df_clean, height=350, use_container_width=True)
@@ -188,31 +194,32 @@ with tab1:
         st.pyplot(fig)
 
 
-# ---------------------------------------------------------
-# TAB 2 – Analytics
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# TAB 2 — Analytics
+# -----------------------------------------------------------
 with tab2:
     st.subheader("Correlation Heatmap")
-
     numeric = df_clean.select_dtypes(include=[np.number])
+
     if len(numeric.columns) >= 2:
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, ax = plt.subplots(figsize=(7, 5))
         sns.heatmap(numeric.corr(), annot=True, cmap="coolwarm", ax=ax)
         st.pyplot(fig)
     else:
         st.info("Not enough numeric columns.")
 
 
-# ---------------------------------------------------------
-# TAB 3 – SAFE MODEL EVALUATION
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# TAB 3 — MODEL EVALUATION (CRASH-PROOF)
+# -----------------------------------------------------------
 with tab3:
     st.subheader("Model Evaluation")
 
     if len(df_clean) < 10:
-        st.warning("⚠ Not enough rows to evaluate model (need ≥ 10).")
-        st.info(f"Available rows: {len(df_clean)}")
+        st.warning("⚠ Not enough data to evaluate model (need ≥ 10 rows).")
+        st.info(f"Rows available: {len(df_clean)}")
 
+        # Show prediction preview
         try:
             preds = model.predict(df_clean[training_columns])
             preview = pd.DataFrame({
@@ -228,12 +235,13 @@ with tab3:
         X = df_clean[training_columns]
         y = df_clean["price"]
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-
         try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+
             preds = model.predict(X_test)
+
             r2 = r2_score(y_test, preds)
             rmse = mean_squared_error(y_test, preds, squared=False)
 
@@ -243,43 +251,41 @@ with tab3:
             fig, ax = plt.subplots()
             ax.scatter(preds, y_test - preds)
             ax.axhline(0, color="red")
-            ax.set_title("Residual Plot")
             st.pyplot(fig)
 
         except Exception as e:
             st.error(f"Model evaluation failed: {e}")
 
 
-# ---------------------------------------------------------
-# TAB 4 – Prediction
-# ---------------------------------------------------------
+# -----------------------------------------------------------
+# TAB 4 — Prediction
+# -----------------------------------------------------------
 with tab4:
     st.subheader("Predict House Price")
 
-    user_input = {}
-
-    c1, c2 = st.columns(2)
+    inputs = {}
+    col1, col2 = st.columns(2)
 
     for i, col in enumerate(training_columns):
-        ui = c1 if i % 2 == 0 else c2
+        ui = col1 if i % 2 == 0 else col2
 
         if df_clean[col].dtype == object:
-            user_input[col] = ui.selectbox(col, sorted(df_clean[col].unique()))
+            inputs[col] = ui.selectbox(col, sorted(df_clean[col].unique()))
         else:
             mn, mx, mv = df_clean[col].min(), df_clean[col].max(), df_clean[col].mean()
-            user_input[col] = ui.number_input(col, mn, mx, mv)
+            inputs[col] = ui.number_input(col, mn, mx, mv)
 
     if st.button("🔮 Predict Price"):
         try:
-            df_in = pd.DataFrame([user_input])
+            df_in = pd.DataFrame([inputs])
             pred = model.predict(df_in)[0]
             st.success(f"🏠 Estimated Price: ₹ {round(pred, 2)}")
         except Exception as e:
             st.error(f"Prediction failed: {e}")
 
 
-# ---------------------------------------------------------
+# -----------------------------------------------------------
 # FOOTER
-# ---------------------------------------------------------
+# -----------------------------------------------------------
 st.markdown("---")
 st.caption("Built with ❤️ by Rohit | Premium ML Dashboard v1.0")
