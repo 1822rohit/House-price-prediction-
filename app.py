@@ -1,3 +1,7 @@
+# ============================================================
+# PREMIUM HOUSE PRICE DASHBOARD — FULL FINAL FIXED VERSION
+# ============================================================
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,7 +11,6 @@ import seaborn as sns
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error
-
 
 
 # ---------------------------------------------------------
@@ -20,9 +23,8 @@ def load_css(path="style.css"):
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
-
 # ---------------------------------------------------------
-# 2. FIX FUNCTION: CLEAN total_sqft column (VERY IMPORTANT)
+# 2. FIX: CLEAN total_sqft COLUMN
 # ---------------------------------------------------------
 def convert_sqft(x):
     try:
@@ -47,7 +49,7 @@ def convert_sqft(x):
             num = float(x.split("acre")[0].strip())
             return num * 43560   # acres → sqft
 
-        # Case 4: pure number
+        # Case 4: pure numeric
         clean = x.replace(",", "")
         if clean.replace(".", "").isdigit():
             return float(clean)
@@ -80,7 +82,7 @@ def load_data(path="Pune_House_Data.csv"):
 def load_model(path="model.pkl"):
     p = Path(path)
     if not p.exists():
-        return None   # handled gracefully later
+        return None
 
     try:
         with open(path, "rb") as f:
@@ -100,7 +102,7 @@ st.set_page_config(
     page_icon="🏡"
 )
 
-load_css()   # apply styling
+load_css()
 
 
 
@@ -110,7 +112,7 @@ load_css()   # apply styling
 st.markdown("""
 <div class="header">
     <h1>🏡 Premium House Price Prediction Dashboard</h1>
-    <p>Advanced ML-powered analytics + predictions</p>
+    <p>Advanced ML-powered analytics + live predictions</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -128,7 +130,7 @@ df_clean.columns = [c.strip() for c in df_clean.columns]
 
 
 # ---------------------------------------------------------
-# 8. CLEAN total_sqft COLUMN (Main Fix)
+# 8. APPLY CLEANING TO total_sqft
 # ---------------------------------------------------------
 if "total_sqft" in df_clean.columns:
     df_clean["total_sqft"] = df_clean["total_sqft"].apply(convert_sqft)
@@ -137,19 +139,19 @@ if "total_sqft" in df_clean.columns:
 
 
 # ---------------------------------------------------------
-# 9. DETECT area column safely
+# 9. DETECT AREA COLUMN
 # ---------------------------------------------------------
 if "total_sqft" in df_clean.columns:
     area_col = "total_sqft"
 else:
-    numeric_cols = df_clean.select_dtypes(include=[np.number]).columns.tolist()
-    numeric_cols = [c for c in numeric_cols if c != "price"]
-    area_col = numeric_cols[0] if numeric_cols else None
+    numerics = df_clean.select_dtypes(include=[np.number]).columns.tolist()
+    numerics = [c for c in numerics if c != "price"]
+    area_col = numerics[0] if numerics else None
 
 
 
 # ---------------------------------------------------------
-# 10. KPIs (Safe)
+# 10. SHOW KPIs
 # ---------------------------------------------------------
 total_props = len(df_clean)
 avg_price = df_clean["price"].mean()
@@ -180,23 +182,22 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 
 # ---------------------------------------------------------
-# TAB 1 — DASHBOARD
+# 12. TAB 1 — DASHBOARD
 # ---------------------------------------------------------
 with tab1:
     st.subheader("📊 Interactive Dashboard")
 
     cat_cols = df_clean.select_dtypes(include=['object']).columns.tolist()
 
-    # FILTERS
+    # Filters (only top 3 categorical)
     for col in cat_cols[:3]:
         options = ["All"] + sorted(df_clean[col].dropna().unique().tolist())
         selected = st.selectbox(f"Filter by {col}", options=options)
         if selected != "All":
             df_clean = df_clean[df_clean[col] == selected]
 
-    st.dataframe(df_clean, height=350)
+    st.dataframe(df_clean, use_container_width=True, height=350)
 
-    # Charts
     c1, c2 = st.columns(2)
 
     with c1:
@@ -214,51 +215,66 @@ with tab1:
 
 
 # ---------------------------------------------------------
-# TAB 2 — ANALYTICS
+# 13. TAB 2 — ANALYTICS
 # ---------------------------------------------------------
 with tab2:
-    st.subheader("📈 Data Analytics")
+    st.subheader("📈 Correlation Heatmap")
 
     num_df = df_clean.select_dtypes(include=[np.number])
 
     if num_df.shape[1] >= 2:
-        st.write("### 🔗 Correlation Heatmap")
         fig, ax = plt.subplots(figsize=(8,5))
         sns.heatmap(num_df.corr(), annot=True, cmap="coolwarm", ax=ax)
         st.pyplot(fig)
     else:
-        st.info("Not enough numeric columns")
+        st.info("Not enough numeric columns for correlation analysis")
 
 
 
 # ---------------------------------------------------------
-# TAB 3 — MODEL PERFORMANCE
+# 14. TAB 3 — MODEL PERFORMANCE (SAFE VERSION)
 # ---------------------------------------------------------
 with tab3:
     st.subheader("📉 Model Performance")
 
     if model is None:
-        st.warning("⚠ No model.pkl found. Upload model.pkl to root folder.")
+        st.warning("⚠ Cannot evaluate — model.pkl not found.")
     else:
         try:
             X = df_clean.drop("price", axis=1)
             y = df_clean["price"]
 
-            X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
-            preds = model.predict(X_te)
+            # If dataset too small, avoid train-test crash
+            if len(X) < 10:
+                st.warning("⚠ Not enough data to evaluate model (needs at least 10 samples).")
+                st.info(f"Dataset has only {len(X)} rows.")
 
-            r2 = r2_score(y_te, preds)
-            rmse = mean_squared_error(y_te, preds, squared=False)
+                # Show prediction preview
+                preds = model.predict(X)
+                preview = pd.DataFrame({
+                    "Actual Price": y.values,
+                    "Predicted Price": preds
+                })
+                st.write("### 🔍 Prediction Preview")
+                st.dataframe(preview.head(10), use_container_width=True)
 
-            st.metric("📊 R² Score", round(r2, 3))
-            st.metric("📉 RMSE", round(rmse, 3))
+            else:
+                # Normal evaluation
+                X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
 
-            fig, ax = plt.subplots()
-            ax.scatter(preds, y_te - preds)
-            ax.axhline(0, color="red", linestyle="--")
-            ax.set_xlabel("Predicted")
-            ax.set_ylabel("Residuals")
-            st.pyplot(fig)
+                preds = model.predict(X_te)
+
+                r2 = r2_score(y_te, preds)
+                rmse = mean_squared_error(y_te, preds, squared=False)
+
+                st.metric("📊 R² Score", round(r2, 3))
+                st.metric("📉 RMSE", round(rmse, 3))
+
+                st.write("### Residual Plot")
+                fig, ax = plt.subplots()
+                ax.scatter(preds, y_te - preds)
+                ax.axhline(0, color="red", linestyle="--")
+                st.pyplot(fig)
 
         except Exception as e:
             st.error(f"⚠ Model evaluation failed: {e}")
@@ -266,7 +282,7 @@ with tab3:
 
 
 # ---------------------------------------------------------
-# TAB 4 — PREDICT PRICE
+# 15. TAB 4 — PREDICT PRICE
 # ---------------------------------------------------------
 with tab4:
     st.subheader("🤖 Predict House Price")
@@ -274,30 +290,27 @@ with tab4:
     if model is None:
         st.warning("⚠ Cannot predict — model.pkl not found.")
     else:
-        input_vals = {}
-
-        X_cols = df_clean.drop("price", axis=1)
+        inputs = {}
+        Xcols = df_clean.drop("price", axis=1).columns.tolist()
 
         colA, colB = st.columns(2)
 
-        for i, col in enumerate(X_cols.columns):
-            ui_col = colA if i % 2 == 0 else colB
+        for i, col in enumerate(Xcols):
+            ui = colA if i % 2 == 0 else colB
 
             if df_clean[col].dtype == object:
-                input_vals[col] = ui_col.selectbox(col, sorted(df_clean[col].dropna().unique()))
+                inputs[col] = ui.selectbox(col, sorted(df_clean[col].dropna().unique()))
             else:
                 mn = float(df_clean[col].min())
                 mx = float(df_clean[col].max())
                 mv = float(df_clean[col].mean())
-                input_vals[col] = ui_col.number_input(col, mn, mx, mv)
+                inputs[col] = ui.number_input(col, mn, mx, mv)
 
         if st.button("🔮 Predict Price"):
             try:
-                df_input = pd.DataFrame([input_vals])
-                pred = model.predict(df_input)[0]
-
-                st.success(f"🏠 Predicted Price: ₹ {round(pred, 2)}")
-
+                df_in = pd.DataFrame([inputs])
+                prediction = model.predict(df_in)[0]
+                st.success(f"🏠 Predicted Price: ₹ {round(prediction, 2)}")
             except Exception as e:
                 st.error(f"Prediction failed: {e}")
 
@@ -307,4 +320,4 @@ with tab4:
 # FOOTER
 # ---------------------------------------------------------
 st.markdown("---")
-st.caption("Premium Dashboard • Auto-cleaning • Error-free • Built by Arihant")
+st.caption("Built with ❤️ by Arihant | Premium ML Dashboard v1.0")
